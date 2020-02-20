@@ -1,18 +1,19 @@
-from __future__ import print_function   # Python 2 compatibility stuff
+from __future__ import print_function  # Python 2 compatibility stuff
+
+import json as jsn
+import os
+import random as rnd
+import re as rgx
+import socket
+import sys
 from builtins import range
 from io import open
 
-import gevent as gvt
-import json as jsn
 import bottle as btl
 import bottle.ext.websocket as wbs
-import re as rgx
-import os
 import eel.browsers as brw
-import random as rnd
-import sys
+import gevent as gvt
 import pkg_resources as pkg
-import socket
 
 _eel_js_file = pkg.resource_filename('eel', 'eel.js')
 _eel_js = open(_eel_js_file, encoding='utf-8').read()
@@ -30,25 +31,12 @@ _mock_queue_done = set()
 _js_result_timeout = 10000
 
 # All start() options must provide a default value and explanation here
-_start_args = {
-    'mode':             'chrome',                   # What browser is used
-    'host':             'localhost',                # Hostname use for Bottle server
-    'port':             8000,                       # Port used for Bottle server (use 0 for auto)
-    'block':            True,                       # Whether start() blocks calling thread
-    'jinja_templates':  None,                       # Folder for jinja2 templates
-    'cmdline_args':     ['--disable-http-cache'],   # Extra cmdline flags to pass to browser start
-    'size':             None,                       # (width, height) of main window
-    'position':         None,                       # (left, top) of main window
-    'geometry':         {},                         # Dictionary of size/position for all windows
-    'close_callback':   None,                       # Callback for when all windows have closed
-    'app_mode':  True,                              # (Chrome specific option)
-    'all_interfaces': False,                        # Allow bottle server to listen for connections on all interfaces
-    'disable_cache': True,                          # Sets the no-store response header when serving assets
-    'app': btl.default_app(),                       # Allows passing in a custom Bottle instance, e.g. with middleware
-}
+_start_args = {'mode': 'chrome', 'host': 'localhost', 'port': 8000, 'block': True, 'jinja_templates': None,
+               'cmdline_args': ['--disable-http-cache'], 'size': None, 'position': None, 'geometry': {},
+               'close_callback': None, 'app_mode': True, 'all_interfaces': False, 'disable_cache': True,
+               'app': btl.default_app(), 'suppress_error': False}
 
 # == Temporary (suppressable) error message to inform users of breaking API change for v1.0.0 ===
-_start_args['suppress_error'] = False
 api_error_message = '''
 ----------------------------------------------------------------------------------
   'options' argument deprecated in v1.0.0, see https://github.com/ChrisKnott/Eel
@@ -56,6 +44,8 @@ api_error_message = '''
   This option will be removed in future versions
 ----------------------------------------------------------------------------------
 '''
+
+
 # ===============================================================================================
 
 # Public functions
@@ -65,12 +55,13 @@ def expose(name_or_function=None):
     if name_or_function is None:
         return expose
 
-    if type(name_or_function) == str:   # Called as '@eel.expose("my_name")'
+    if type(name_or_function) == str:  # Called as '@eel.expose("my_name")'
         name = name_or_function
 
         def decorator(function):
             _expose(name, function)
             return function
+
         return decorator
     else:
         function = name_or_function
@@ -105,7 +96,7 @@ def init(path, allowed_extensions=['.js', '.html', '.txt', '.htm',
                         expose_calls.add(expose_call)
                     js_functions.update(expose_calls)
             except UnicodeDecodeError:
-                pass    # Malformed file probably
+                pass  # Malformed file probably
 
     _js_functions = list(js_functions)
     for js_function in _js_functions:
@@ -129,18 +120,17 @@ def start(*start_urls, **kwargs):
         _start_args['port'] = sock.getsockname()[1]
         sock.close()
 
-    if _start_args['jinja_templates'] != None:
+    if _start_args['jinja_templates'] is not None:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
         templates_path = os.path.join(root_path, _start_args['jinja_templates'])
         _start_args['jinja_env'] = Environment(loader=FileSystemLoader(templates_path),
-                                 autoescape=select_autoescape(['html', 'xml']))
-
+                                               autoescape=select_autoescape(['html', 'xml']))
 
     # Launch the browser to the starting URLs
     show(*start_urls)
 
     def run_lambda():
-        if _start_args['all_interfaces'] == True:
+        if _start_args['all_interfaces']:
             HOST = '0.0.0.0'
         else:
             HOST = _start_args['host']
@@ -175,12 +165,13 @@ def sleep(seconds):
 def spawn(function, *args, **kwargs):
     gvt.spawn(function, *args, **kwargs)
 
+
 # Bottle Routes
 
 def _eel():
     start_geometry = {'default': {'size': _start_args['size'],
                                   'position': _start_args['position']},
-                      'pages':   _start_args['geometry']}
+                      'pages': _start_args['geometry']}
 
     page = _eel_js.replace('/** _py_functions **/',
                            '_py_functions: %s,' % list(_exposed_functions.keys()))
@@ -189,6 +180,7 @@ def _eel():
     btl.response.content_type = 'application/javascript'
     _set_response_headers(btl.response)
     return page
+
 
 def _static(path):
     response = None
@@ -204,6 +196,7 @@ def _static(path):
 
     _set_response_headers(response)
     return response
+
 
 def _websocket(ws):
     global _websockets
@@ -237,6 +230,7 @@ BOTTLE_ROUTES = {
     "/eel": (_websocket, dict(apply=[wbs.websocket]))
 }
 
+
 # Private functions
 
 def _safe_json(obj):
@@ -255,8 +249,8 @@ def _repeated_send(ws, msg):
 def _process_message(message, ws):
     if 'call' in message:
         return_val = _exposed_functions[message['name']](*message['args'])
-        _repeated_send(ws, _safe_json({ 'return': message['call'],
-                                        'value': return_val  }))
+        _repeated_send(ws, _safe_json({'return': message['call'],
+                                       'value': return_val}))
     elif 'return' in message:
         call_id = message['return']
         if call_id in _call_return_callbacks:
@@ -316,6 +310,7 @@ def _call_return(call):
                 if call_id in _call_return_values:
                     return _call_return_values.pop(call_id)
                 sleep(0.001)
+
     return return_func
 
 
