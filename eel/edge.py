@@ -1,11 +1,11 @@
 import subprocess as sps
 import sys
 
-name = 'Edge'
+name = "Edge"
 
 
 def run(_path, options, start_urls):
-    cmd = 'start microsoft-edge:{}'.format(start_urls[0])
+    cmd = "start microsoft-edge:{}".format(start_urls[0])
     sps.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, stdin=sps.PIPE, shell=True)
 
 

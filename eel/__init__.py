@@ -15,8 +15,8 @@ import eel.browsers as brw
 import gevent as gvt
 import pkg_resources as pkg
 
-_eel_js_file = pkg.resource_filename('eel', 'eel.js')
-_eel_js = open(_eel_js_file, encoding='utf-8').read()
+_eel_js_file = pkg.resource_filename("eel", "eel.js")
+_eel_js = open(_eel_js_file, encoding="utf-8").read()
 _websockets = []
 _call_return_values = {}
 _call_return_callbacks = {}
@@ -31,24 +31,38 @@ _mock_queue_done = set()
 _js_result_timeout = 10000
 
 # All start() options must provide a default value and explanation here
-_start_args = {'mode': 'chrome', 'host': 'localhost', 'port': 8000, 'block': True, 'jinja_templates': None,
-               'cmdline_args': ['--disable-http-cache'], 'size': None, 'position': None, 'geometry': {},
-               'close_callback': None, 'app_mode': True, 'all_interfaces': False, 'disable_cache': True,
-               'app': btl.default_app(), 'suppress_error': False}
+_start_args = {
+    "mode": "chrome",
+    "host": "localhost",
+    "port": 8000,
+    "block": True,
+    "jinja_templates": None,
+    "cmdline_args": ["--disable-http-cache"],
+    "size": None,
+    "position": None,
+    "geometry": {},
+    "close_callback": None,
+    "app_mode": True,
+    "all_interfaces": False,
+    "disable_cache": True,
+    "app": btl.default_app(),
+    "suppress_error": False,
+}
 
 # == Temporary (suppressable) error message to inform users of breaking API change for v1.0.0 ===
-api_error_message = '''
+api_error_message = """
 ----------------------------------------------------------------------------------
   'options' argument deprecated in v1.0.0, see https://github.com/ChrisKnott/Eel
   To suppress this error, add 'suppress_error=True' to start() call.
   This option will be removed in future versions
 ----------------------------------------------------------------------------------
-'''
+"""
 
 
 # ===============================================================================================
 
 # Public functions
+
 
 def expose(name_or_function=None):
     # Deal with '@eel.expose()' - treat as '@eel.expose'
@@ -69,8 +83,11 @@ def expose(name_or_function=None):
         return function
 
 
-def init(path, allowed_extensions=['.js', '.html', '.txt', '.htm',
-                                   '.xhtml', '.vue'], js_result_timeout=10000):
+def init(
+    path,
+    allowed_extensions=[".js", ".html", ".txt", ".htm", ".xhtml", ".vue"],
+    js_result_timeout=10000,
+):
     global root_path, _js_functions, _js_result_timeout
     root_path = _get_real_path(path)
 
@@ -81,18 +98,20 @@ def init(path, allowed_extensions=['.js', '.html', '.txt', '.htm',
                 continue
 
             try:
-                with open(os.path.join(root, name), encoding='utf-8') as file:
+                with open(os.path.join(root, name), encoding="utf-8") as file:
                     contents = file.read()
                     expose_calls = set()
-                    finder = rgx.findall(r'eel\.expose\(([^\)]+)\)', contents)
+                    finder = rgx.findall(r"eel\.expose\(([^\)]+)\)", contents)
                     for expose_call in finder:
                         # If name specified in 2nd argument, strip quotes and store as function name
-                        if ',' in expose_call:
-                            expose_call = rgx.sub(r'["\']', '', expose_call.split(',')[1])
+                        if "," in expose_call:
+                            expose_call = rgx.sub(
+                                r'["\']', "", expose_call.split(",")[1]
+                            )
                         expose_call = expose_call.strip()
                         # Verify that function name is valid
                         msg = "eel.expose() call contains '(' or '='"
-                        assert rgx.findall(r'[\(=]', expose_call) == [], msg
+                        assert rgx.findall(r"[\(=]", expose_call) == [], msg
                         expose_calls.add(expose_call)
                     js_functions.update(expose_calls)
             except UnicodeDecodeError:
@@ -108,47 +127,51 @@ def init(path, allowed_extensions=['.js', '.html', '.txt', '.htm',
 def start(*start_urls, **kwargs):
     _start_args.update(kwargs)
 
-    if 'options' in kwargs:
-        if _start_args['suppress_error']:
-            _start_args.update(kwargs['options'])
+    if "options" in kwargs:
+        if _start_args["suppress_error"]:
+            _start_args.update(kwargs["options"])
         else:
             raise RuntimeError(api_error_message)
 
-    if _start_args['port'] == 0:
+    if _start_args["port"] == 0:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind(('localhost', 0))
-        _start_args['port'] = sock.getsockname()[1]
+        sock.bind(("localhost", 0))
+        _start_args["port"] = sock.getsockname()[1]
         sock.close()
 
-    if _start_args['jinja_templates'] is not None:
+    if _start_args["jinja_templates"] is not None:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
-        templates_path = os.path.join(root_path, _start_args['jinja_templates'])
-        _start_args['jinja_env'] = Environment(loader=FileSystemLoader(templates_path),
-                                               autoescape=select_autoescape(['html', 'xml']))
+
+        templates_path = os.path.join(root_path, _start_args["jinja_templates"])
+        _start_args["jinja_env"] = Environment(
+            loader=FileSystemLoader(templates_path),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
 
     # Launch the browser to the starting URLs
     show(*start_urls)
 
     def run_lambda():
-        if _start_args['all_interfaces']:
-            HOST = '0.0.0.0'
+        if _start_args["all_interfaces"]:
+            HOST = "0.0.0.0"
         else:
-            HOST = _start_args['host']
+            HOST = _start_args["host"]
 
-        app = _start_args['app']  # type: btl.Bottle
+        app = _start_args["app"]  # type: btl.Bottle
         for route_path, route_params in BOTTLE_ROUTES.items():
             route_func, route_kwargs = route_params
             btl.route(path=route_path, callback=route_func, **route_kwargs)
 
         return btl.run(
             host=HOST,
-            port=_start_args['port'],
+            port=_start_args["port"],
             server=wbs.GeventWebSocketServer,
             quiet=True,
-            app=app)
+            app=app,
+        )
 
     # Start the webserver
-    if _start_args['block']:
+    if _start_args["block"]:
         run_lambda()
     else:
         spawn(run_lambda)
@@ -168,27 +191,31 @@ def spawn(function, *args, **kwargs):
 
 # Bottle Routes
 
-def _eel():
-    start_geometry = {'default': {'size': _start_args['size'],
-                                  'position': _start_args['position']},
-                      'pages': _start_args['geometry']}
 
-    page = _eel_js.replace('/** _py_functions **/',
-                           '_py_functions: %s,' % list(_exposed_functions.keys()))
-    page = page.replace('/** _start_geometry **/',
-                        '_start_geometry: %s,' % _safe_json(start_geometry))
-    btl.response.content_type = 'application/javascript'
+def _eel():
+    start_geometry = {
+        "default": {"size": _start_args["size"], "position": _start_args["position"]},
+        "pages": _start_args["geometry"],
+    }
+
+    page = _eel_js.replace(
+        "/** _py_functions **/", "_py_functions: %s," % list(_exposed_functions.keys())
+    )
+    page = page.replace(
+        "/** _start_geometry **/", "_start_geometry: %s," % _safe_json(start_geometry)
+    )
+    btl.response.content_type = "application/javascript"
     _set_response_headers(btl.response)
     return page
 
 
 def _static(path):
     response = None
-    if 'jinja_env' in _start_args and 'jinja_templates' in _start_args:
-        template_prefix = _start_args['jinja_templates'] + '/'
+    if "jinja_env" in _start_args and "jinja_templates" in _start_args:
+        template_prefix = _start_args["jinja_templates"] + "/"
         if path.startswith(template_prefix):
             n = len(template_prefix)
-            template = _start_args['jinja_env'].get_template(path[n:])
+            template = _start_args["jinja_env"].get_template(path[n:])
             response = btl.HTTPResponse(template.render())
 
     if response is None:
@@ -227,11 +254,12 @@ def _websocket(ws):
 BOTTLE_ROUTES = {
     "/eel.js": (_eel, dict()),
     "/<path:path>": (_static, dict()),
-    "/eel": (_websocket, dict(apply=[wbs.websocket]))
+    "/eel": (_websocket, dict(apply=[wbs.websocket])),
 }
 
 
 # Private functions
+
 
 def _safe_json(obj):
     return jsn.dumps(obj, default=lambda o: None)
@@ -247,23 +275,22 @@ def _repeated_send(ws, msg):
 
 
 def _process_message(message, ws):
-    if 'call' in message:
-        return_val = _exposed_functions[message['name']](*message['args'])
-        _repeated_send(ws, _safe_json({'return': message['call'],
-                                       'value': return_val}))
-    elif 'return' in message:
-        call_id = message['return']
+    if "call" in message:
+        return_val = _exposed_functions[message["name"]](*message["args"])
+        _repeated_send(ws, _safe_json({"return": message["call"], "value": return_val}))
+    elif "return" in message:
+        call_id = message["return"]
         if call_id in _call_return_callbacks:
             callback = _call_return_callbacks.pop(call_id)
-            callback(message['value'])
+            callback(message["value"])
         else:
-            _call_return_values[call_id] = message['value']
+            _call_return_values[call_id] = message["value"]
     else:
-        print('Invalid message received: ', message)
+        print("Invalid message received: ", message)
 
 
 def _get_real_path(path):
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         return os.path.join(sys._MEIPASS, path)
     else:
         return os.path.abspath(path)
@@ -281,7 +308,7 @@ def _call_object(name, args):
     global _call_number
     _call_number += 1
     call_id = _call_number + rnd.random()
-    return {'call': call_id, 'name': name, 'args': args}
+    return {"call": call_id, "name": name, "args": args}
 
 
 def _mock_call(name, args):
@@ -300,7 +327,7 @@ def _js_call(name, args):
 
 def _call_return(call):
     global _js_result_timeout
-    call_id = call['call']
+    call_id = call["call"]
 
     def return_func(callback=None):
         if callback is not None:
@@ -321,7 +348,7 @@ def _expose(name, function):
 
 
 def _websocket_close(page):
-    close_callback = _start_args.get('close_callback')
+    close_callback = _start_args.get("close_callback")
 
     if close_callback is not None:
         sockets = [p for _, p in _websockets]
@@ -334,6 +361,6 @@ def _websocket_close(page):
 
 
 def _set_response_headers(response):
-    if _start_args['disable_cache']:
+    if _start_args["disable_cache"]:
         # https://stackoverflow.com/a/24748094/280852
-        response.set_header('Cache-Control', 'no-store')
+        response.set_header("Cache-Control", "no-store")
