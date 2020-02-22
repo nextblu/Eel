@@ -7,3 +7,5 @@ Eel.egg-info
 *.pyc
 *.swp
 venv/
+
+eel/.idea/
